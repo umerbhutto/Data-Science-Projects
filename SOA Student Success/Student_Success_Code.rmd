@@ -1,0 +1,490 @@
+---
+title: "PA Sample Project - Student Performance"
+output: html_notebook
+---
+
+Problem:
+
+We have just been presented a unique opportunity to work with School Wiz, a group dedicated to providing remedial education to troubled students. School Wiz has heard about our work and wants to explore using our services to advance their business goals. If we secure their business, we will be working with them for the next several months on data collection and analysis. However, they are not yet convinced that predictive analytics can help them. 
+
+To earn their business, we need to demonstrate how we can use our tools to answer their major questions, which are:
+
+1. How accurately can we predict which students will pass based on a variety of factors; and
+2. Which factors are most important for predicting pass rates?
+
+-----------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------
+
+Data Dictionary: 
+
+school - student's school (binary: GP (Grand Pines) or MHS (Marble Hill School))
+sex - student's sex (binary: female or male)
+age - student's age (numeric: from 15 to 22)
+address - student's home address type (binary: U (Urban) or R (Rural))
+famsize - family size (binary: GT3 (>3) or LE3 (3???)
+Pstatus - parent's status (binary: A (Apart) or T (Together))
+Medu - mother's education (numeric: from 0 to 4 a)
+Fedu - father's education (numeric: from 0 to 4 a)
+Mjob - mother's job (nominal b)
+Fjob - father's job (nominal b)
+reason - reason to choose school (nominal: home (close to home), reputation (school
+        reputation), course (course preference), or other)
+guardian - student's guardian (nominal: mother, father, or other)
+traveltime - home to school travel time (numeric: 1 - <15 minutes, 2 - 15 to 30 minutes, 2 -
+            30 minutes to 1 hour or 4 - > 1 hour)
+studytime - weekly study time (numeric: 1 - <2 hours, 2 - 2 to 5 hours, 3 - 5 to 10 hours or 4
+            - >10 hours
+failures - number of past class failures (numeric: n if 0 ??? n < 3, else 3)
+schoolsup - extra educational support (binary: yes or no)
+famsup - extra family supplement (binary: yes or no)
+paid - extra paid classes (binary: yes or no)
+activities - extra-curricular activities (binary: yes or no)
+nursery - attended nursery school (binary: yes or no)
+higher - wants to take higher education (binary: yes or no)
+internet - internet access at home (binary: yes or no)
+romantic - has a romantic relationship (binary: yes or no)
+famrel - quality of family relationships (numeric: from 1- very bad to 5 - excellent)
+freetime - free time after school (numeric: 1 - very low to 5 - very high)
+goout - going out with friends (numeric: 1 - very low to 5 - very high)
+Dalc - weekday alcohol consumption (numeric: from 1 - very low to 5 - very high)
+Walc - weekend alcohol consumption (numeric: from 1 - very low to 5 - very high)
+health - current health status (numeric: from 1 - very bad to 5 - very good)
+absences - number of school absences (numeric: from 0 to 75)
+G1 - first trimester grade (numeric: from 0 to 20)
+G2 - second trimester grade (numeric: from 0 to 20)
+G3 (target) - third trimester grade (numeric: from 0 to 20)
+
+Notes: 
+0 - none, 1 - primary education (4th grade), 2 - 5th to 9th grade, 3 - secondary education (high
+school) or 4 - higher education (college)
+
+Medu and Fedu are divided as follows: teacher, health (health care related), services (civil services, administrative or police),at_home, or other
+
+-----------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------
+
+## Read in data
+
+Read in the dataset and create a pass/fail factor variable.
+
+```{r}
+
+Full.DS <- read.csv("student-success-data-file.csv")
+
+# Note the number of rows.
+nrow(Full.DS) # 585 students
+ 
+#Take a quick look at G3.
+table(Full.DS$G3)
+
+# There are clearly some issues here, they can be handled in the data cleaning stage.
+
+# Create a new variable that assigns pass "P" to those with G3 >= 10.
+Full.DS$G3.Pass.Flag <- as.factor(ifelse(Full.DS$G3 >= 10, "P", "F"))
+
+# Remove G1, G2, and absences.
+Full.DS$G1 <- NULL
+Full.DS$G2 <- NULL
+Full.DS$absences <- NULL
+```
+
+## Data exploration and cleaning
+
+To get a sense of the data, here is a summary.
+
+```{r}
+summary(Full.DS)
+str(Full.DS)
+```
+
+After looking at G3, I observed certain values < 0 and > 20. As G3 is 0 <= x <= 20, we will remove these outliers
+
+```{r}
+
+# Create a bakcup
+Full.DS1 <- Full.DS
+
+# Removing G3 values < 0 and > 20
+Full.DS1 <- Full.DS1 <- Full.DS1[Full.DS1$G3 >= 0 & Full.DS1$G3 <= 20,]
+
+# Look at rows removed
+abs(nrow(Full.DS) - nrow(Full.DS1))
+
+# save changes to original file
+Full.DS <- Full.DS1
+rm(Full.DS1)
+
+```
+
+Removed 17 rows due to outliers in the G3 values
+
+It appears there are some outliers. I've used my boxplot function to look at age versus passing. Probably should be done for other numeric variables.
+
+## Variable Exploration
+
+For the numeric variables, i focused on understanding the distribution of each variable using a boxplot. Age was the only numeric variable
+
+```{r}
+
+library(ggplot2)
+ggplot(data = Full.DS, aes(x = G3.Pass.Flag, y = age)) + geom_jitter() + geom_boxplot(alpha = 0.5)
+
+```
+
+Based on the boxplot, age does make a difference. Younger students are more likely to pass than older students. Also there is a wider age range of students failing as compared to students passing. Most students passing fall within the 16 - 17.
+
+For categorical variables, i created bar charts to better understand the affect the variable had on passing rates. Each categorical variable (usually with a scale) was compared to G3.Pass.Flag (a binary variable showing whether students passed or not).
+
+```{r}
+
+for(i in c(1:2,4:29)){
+  m <- ggplot(data = Full.DS, aes(x = Full.DS[,i], fill = G3.Pass.Flag)) + 
+    geom_bar() + labs(x = colnames(Full.DS)[i])
+  print(m)
+}
+
+table(Full.DS$Medu)
+
+# Few in that category. Maybe eliminate?
+```
+
+Based on the analysis above, i observed that most categorical variables acted as we predicted. However, there are certain variables that are problematic. 
+
+Both Medu and Fedu have a level = 0. I don't know what this means. Also higher levels of Medu does not seem to have a high affect on pass rates. Higher levels of Dalc and Walc also don't seem to have much of an effect on pass rates which seems weird. Looking at past failures, I observed that past failures has a considerable impact on G3 pass rates. I will look into this further.
+
+We will remove any values where Medu = 0 or Fedu = 0
+```{r}
+
+Full.DS <- Full.DS[Full.DS$Medu > 0,]
+Full.DS  <- Full.DS[Full.DS$Fedu > 0,]
+
+```
+
+5 observations were removed
+
+## Calculate correlations for numerical variables
+
+The following table shows the correlation for numeric variables
+
+```{r}
+
+# Get the numeric variables for use in the correlation matrix.
+
+numeric.vars <-names(Full.DS)[sapply(Full.DS, class) %in% c("integer", "numeric")] # get numeric var names
+num.Full.DS <- Full.DS[, numeric.vars] # get only numeric variables
+
+# Create the correlation matrix.
+
+cor.Full.DS <- data.frame(round(cor(num.Full.DS), 2)) 
+
+cor.Full.DS
+```
+
+Based on the correlation matrix, Medu and Fedu have a high correlation (0.70) so this can be used to create a new feature. Also Walc and Dalc have a high correlation (0.62) so this can be used to create a new feature.
+
+## Feature creation
+
+We will create 3 new features. The first feature will calculate the total score for Medu and Fedu. We will use this to assess whether both parents went to college. The second feature will calculate the total alchohol consumption level for both Dalc and Walc. The last feature will calculate whether the student had any past failures
+
+```{r}
+
+# New feature for parent's education and whether or not they went to college
+Full.DS$comb.edu <- Full.DS$Medu * Full.DS$Fedu
+Full.DS$both.coll <- ifelse(Full.DS$comb.edu == 16, 1, 0)
+
+# new feature for total alchohol consumption (during weekdays and weekends)
+Full.DS$comb.alc <- Full.DS$Walc * Full.DS$Dalc
+
+# new binary feature showing whether or not student failed prior to this class
+Full.DS$past.fail <- ifelse(Full.DS$failures > 0, 1, 0)
+```
+
+Let's plot these new features to get a better understanding of the dependent variable
+
+```{r}
+ggplot(data = Full.DS, aes(x = comb.edu, fill = G3.Pass.Flag)) + geom_bar()
+ggplot(data = Full.DS, aes(x = both.coll, fill = G3.Pass.Flag)) + geom_bar()
+ggplot(data = Full.DS, aes(x = comb.alc, fill = G3.Pass.Flag)) + geom_bar()
+ggplot(data = Full.DS, aes(x = past.fail, fill = G3.Pass.Flag)) + geom_bar()
+
+```
+
+The new features present a better picture of G3.Pass.Flag. Firstly, if both parents went to college, the student has a much higher chance of passing. Past failures also results in a higher chance of a student failing.
+
+## Prepare dataset for modeling 
+
+Stratified sampling should be used to handle an unbalanced sample; approximately 65% passing and 35% failing.  Want to make sure we dont get more passing or failing individuals in our test or train sets.
+
+```{r}
+library(caret)
+set.seed(1234)
+partition <- createDataPartition(Full.DS$G3.Pass.Flag, list = FALSE, p = .75)
+Train.DS <- Full.DS[partition, ]
+Test.DS <- Full.DS[-partition, ]
+
+# Pass Rates in train set:
+table(Train.DS$G3.Pass.Flag) / nrow(Train.DS)
+
+# Pass rates in test set:
+table(Test.DS$G3.Pass.Flag) / nrow(Test.DS)
+```
+
+## Build models  
+
+### Model 1 - Decision tree
+
+Model to predict pass or fail
+
+The following code runs a decision tree classification model on G3.Pass.Flag, 
+using all variables except for G3.  It uses the full dataset.
+
+The control parameter is used to set the minbucket, cp and maxdepth parameters.
+
+
+```{r}
+library(rpart)
+library(rpart.plot)
+set.seed(123)
+excluded_variables <- c("G3") # List excluded variables.
+
+dt <- rpart(G3.Pass.Flag ~ ., 
+            data = Train.DS[, !(names(Train.DS) %in% excluded_variables)],
+            control = rpart.control(minbucket = 5, cp = .001, maxdepth = 20),
+            parms = list(split = "gini"))
+
+rpart.plot(dt)
+printcp(dt)
+plotcp(dt)
+
+# Based on the School Wiz's assessment that any student >= 10 is given a pass, we will assign the cutoff at 0.50
+
+cutoff <- 0.5 # set cutoff value
+
+print("Train - Confusion matrix")
+predicted <- predict(dt, type = "prob")[,1] # This outputs the probabiity of failing
+predicted.final <- as.factor(ifelse(predicted > cutoff, "F", "P"))
+confusionMatrix(predicted.final, factor(Train.DS$G3.Pass.Flag)) 
+# Accuracy = 0.8629
+
+
+print("Test - Confusion matrix")
+predicted <- predict(dt, newdata = Test.DS, type = "prob")[,1]
+predicted.final <- as.factor(ifelse(predicted > cutoff, "F", "P"))
+confusionMatrix(predicted.final, factor(Test.DS$G3.Pass.Flag)) 
+# Accuracy = 0.70
+
+```
+
+The model built is very complex. Also there is a significant difference between the train accuracy and test accuracy. This may be indicative of the model overfitting to the training dataset. I will now attempt to prune the tree
+
+```{r}
+
+cp.best <- dt$cptable[which.min(dt$cptable[,"xerror"]),"CP"]
+
+prune.tree <- prune(dt, cp = cp.best)
+
+rpart.plot(prune.tree)
+
+cutoff <- 0.5
+
+print("Train - Confusion matrix")
+predicted <- predict(prune.tree, type = "prob")[,1]
+predicted.final <- as.factor(ifelse(predicted > cutoff, "F", "P"))
+confusionMatrix(predicted.final, factor(Train.DS$G3.Pass.Flag)) 
+# Accuracy = 0.766
+
+
+print("Test - Confusion matrix")
+predicted <- predict(prune.tree, newdata = Test.DS, type = "prob")[,1]
+predicted.final <- as.factor(ifelse(predicted > cutoff, "F", "P"))
+confusionMatrix(predicted.final, factor(Test.DS$G3.Pass.Flag)) 
+# Accuracy = 0.7143
+
+```
+
+By looking at the prune decision tree, we have improved the test accuracy while decreasing the chances of overfitting of the model to the training dataset.
+
+### Model 2 - Random forest classification
+
+The following code runs a random forest classification model on G3.Pass.Flag, using all variables except G3.  It uses the full dataset.  The code runs through repeated cross validation, and produces the best fit model based on the accuracy metric.
+
+```{r}
+
+set.seed(100)
+
+excluded_variables <- c("G3") # List excluded variables.
+
+control <- trainControl(method = "repeatedcv", 
+                        number = 5, 
+                        repeats = 2)
+
+tune_grid <- expand.grid(mtry = c(15:25))
+
+rf <- train(as.factor(G3.Pass.Flag) ~ ., 
+            data = Train.DS[, !(names(Train.DS) %in% excluded_variables)],
+            method = "rf",
+            ntree = 50,
+            importance = TRUE,
+            trControl = control,
+            tuneGrid = tune_grid)
+plot(rf)
+
+plot(varImp(rf), top = 15, main = "Variable Importance of Classification Random Forest")
+
+cutoff <- 0.5
+
+print("Train - Confusion matrix")
+predicted <- predict(rf, type = "prob")[,1]
+predicted.final <- as.factor(ifelse(predicted > cutoff, "F", "P"))
+confusionMatrix(predicted.final, factor(Train.DS$G3.Pass.Flag))
+# Accuracy = 1
+
+print("Test - Confusion matrix")
+predicted <- predict(rf, newdata = Test.DS, type = "prob")[,1]
+predicted.final <- as.factor(ifelse(predicted > cutoff, "F", "P"))
+confusionMatrix(predicted.final, factor(Test.DS$G3.Pass.Flag)) 
+# Accuracy = 0.75
+
+```
+
+The Random Forest may be overfitting to the training dataset. Due to time constraints, this will have to do. I observed that based on the variable importance graph failures, past fialures, combined education and goout are the most important factors when considering G3.Pass.Flag. This may be important later on when building our GLM function.
+
+### Model 3 - GLM
+
+Because we are modeling a probability (of passing), we need to use the binomial family with a logit link function. Logit link function is easier for interpretation than the probit. 
+
+```{r, echo = TRUE}
+GLM <- glm(G3.Pass.Flag ~ . - G3, data = Train.DS, family = binomial(link = "logit"))
+#AIC = 452.09
+
+summary(GLM)
+
+cutoff <- 0.5 # set cutoff value
+
+print("Train - confusion matrix")
+predicted <- predict(GLM, type = "response")
+predicted.final <- as.factor(ifelse(predicted > cutoff, "P", "F"))
+confusionMatrix(predicted.final, factor(Train.DS$G3.Pass.Flag)) 
+# Accuracy = 0.8038
+
+print("Test - confusion matrix")
+predicted <- predict(GLM, newdata = Test.DS, type = "response")
+predicted.final <- as.factor(ifelse(predicted > cutoff, "P", "F"))
+confusionMatrix(predicted.final, factor(Test.DS$G3.Pass.Flag)) 
+# Accuracy = 0.7357
+
+```
+
+There may be some overfitting so we will attempt to reduce the complexity of the model and improve the predictive accuracy of the glm model.
+
+```{r}
+
+library(MASS)
+stepAIC(GLM)
+
+```
+
+Based on stepAIC we have identified the variables with the best predictive power. We will create a new model using this:
+
+```{r}
+
+form1 <- as.formula(G3.Pass.Flag ~ sex + Medu + Fedu + Mjob + traveltime + failures + 
+    famsup + nursery + higher + internet + goout + health + comb.edu + 
+    both.coll)
+
+glm.reduce <- glm(form1,
+                  family = binomial(link = "logit"),
+                  data = Train.DS)
+
+summary(glm.reduce)
+
+cutoff <- 0.5 # set cutoff value
+
+print("Train - confusion matrix")
+predicted <- predict(glm.reduce, type = "response")
+predicted.final <- as.factor(ifelse(predicted > cutoff, "P", "F"))
+confusionMatrix(predicted.final, factor(Train.DS$G3.Pass.Flag)) 
+# Accuracy = 0.7943
+
+print("Test - confusion matrix")
+predicted <- predict(glm.reduce, newdata = Test.DS, type = "response")
+predicted.final <- as.factor(ifelse(predicted > cutoff, "P", "F"))
+confusionMatrix(predicted.final, factor(Test.DS$G3.Pass.Flag)) 
+# Accuracy = 0.75
+
+```
+
+Although the accuracy of the reduced glm model is good, we will attempt to use regularization to create a better model
+
+```{r}
+
+# create the necessary model matrixes
+form2 <- as.formula(G3.Pass.Flag ~ (school + sex + age + address + famsize + Pstatus + 
+    Medu + Fedu + Mjob + Fjob + reason + guardian + traveltime + 
+    studytime + failures + schoolsup + famsup + paid + activities + 
+    nursery + higher + internet + romantic + famrel + freetime + 
+    goout + Dalc + Walc + health + G3 + comb.edu + both.coll + 
+    comb.alc + past.fail) - G3)
+
+x.train <- model.matrix(form2, Train.DS)
+x.test <- model.matrix(form2, Test.DS)
+
+# We will use lasso regression as it works well with linear regression
+alpha.guess <- 1
+
+# We will need to calculate the best lambda value
+library(glmnet)
+
+m <- cv.glmnet(x = x.train,
+               y = Train.DS$G3.Pass.Flag,
+               family = "binomial",
+               alpha = alpha.guess)
+
+# Now we will create the best regularized model using the lambda value from the prior model
+m.best <- glmnet(x = x.train,
+                 y = Train.DS$G3.Pass.Flag,
+                 family = "binomial",
+                 lambda = m$lambda.min,
+                 alpha = alpha.guess)
+
+cutoff <- 0.5 # set cutoff value
+
+print("Train - confusion matrix")
+predicted <- predict(m.best, newx = x.train, type = "response")
+predicted.final <- as.factor(ifelse(predicted > cutoff, "P", "F"))
+confusionMatrix(predicted.final, factor(Train.DS$G3.Pass.Flag)) 
+# Accuracy = 0.7612
+
+print("Test - confusion matrix")
+predicted <- predict(m.best, newx = x.test, type = "response")
+predicted.final <- as.factor(ifelse(predicted > cutoff, "P", "F"))
+confusionMatrix(predicted.final, factor(Test.DS$G3.Pass.Flag)) 
+# Accuracy = 0.7571
+
+```
+
+## Final Model
+
+As we are looking for the right balance between interpretability and accuracy, we will choose the reduced glm model rather than the regularized glm model. We will use the entire dataset to see the accuracy. The final model is shown below:
+
+```{r}
+
+form1 <- as.formula(G3.Pass.Flag ~ sex + Medu + Fedu + Mjob + traveltime + failures + 
+    famsup + nursery + higher + internet + goout + health + comb.edu + 
+    both.coll)
+
+glm.reduce <- glm(form1,
+                  family = binomial(link = "logit"),
+                  data = Full.DS)
+
+summary(glm.reduce)
+
+cutoff <- 0.5 # set cutoff value
+
+print("All Data - confusion matrix")
+predicted <- predict(glm.reduce, type = "response")
+predicted.final <- as.factor(ifelse(predicted > cutoff, "P", "F"))
+confusionMatrix(predicted.final, factor(Full.DS$G3.Pass.Flag)) 
+# Accuracy = 0.7709
+
+```

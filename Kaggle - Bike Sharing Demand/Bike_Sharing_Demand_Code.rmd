@@ -1,0 +1,211 @@
+---
+title: "Review 2 - Code"
+author: "Umer Bhutto"
+date: "May 24, 2019"
+output: html_document
+---
+
+Result = 0.65768
+
+submission link: https://www.kaggle.com/c/bike-sharing-demand
+
+You are provided hourly rental data spanning two years. For this competition, the training set is comprised of the first 19 days of each month, while the test set is the 20th to the end of the month. You must predict the total count of bikes rented during each hour covered by the test set, using only information available prior to the rental period.
+
+## Read Data
+
+The following columns are included in the dataset
+  datetime - hourly date + timestamp  
+  season -  1 = spring, 2 = summer, 3 = fall, 4 = winter 
+  holiday - if a weekend / holiday = 1, otherwise its a 0
+  workingday - whether the day is neither a weekend nor holiday
+  weather - 1: Clear, Few clouds, Partly cloudy, Partly cloudy
+            2: Mist + Cloudy, Mist + Broken clouds, Mist + Few clouds, Mist
+            3: Light Snow, Light Rain + Thunderstorm + Scattered clouds, Light Rain + Scattered clouds
+            4: Heavy Rain + Ice Pallets + Thunderstorm + Mist, Snow + Fog 
+  temp - temperature in Celsius
+  atemp - "feels like" temperature in Celsius
+  humidity - relative humidity
+  windspeed - wind speed
+  casual - number of non-registered user rentals initiated
+  registered - number of registered user rentals initiated
+  count - number of total rentals
+
+
+```{r}
+
+traindf <- read.csv("train.csv")
+testdf <- read.csv("test.csv")
+
+```
+
+As the dataset is divided into trianing and testing dataset. We will attempt to see if there are any NA or missing values. We will also see if there are any things we can change to predict things better
+
+```{r}
+
+# lets look at the structure of the training dataset
+str(traindf)
+str(testdf)
+
+# we will create a column called IsTrain in both datasets. We will also create a dataset for 
+traindf$IsTrain <- TRUE
+testdf$IsTrain <- FALSE
+
+testdf$count <- NA
+testdf$casual <- NA
+testdf$registered <- NA
+
+#It seems that we are missing casual and registered. We will attempt to see how these columns affect the count in the trianing df and whether there is some kind of relationship
+
+data.full <- rbind(traindf,testdf)
+
+```
+
+
+## Date Cleansing
+
+We will attempt to see whether there are any NA values and whether we can fix those values using various input methods
+
+```{r}
+
+colvars <- colnames(data.full)
+
+#lets look at any na values
+for(i in colvars){
+  m <- data.full[is.na(data.full[,i]),]
+  print (m)
+}
+
+#lets look for any missing values
+for(i in colvars){
+  m <- data.full[data.full[,i] == "",]
+  print(m)
+}
+#there are no missing values only NA values due to the testdf
+
+# the following columns seem to have NA values
+# Casual has 6493 missing values from the testdf
+# registered has 6493 missing values from the testdf
+# count has 6493 missing values from the testdf but this is not important because we will predict those
+
+# We will find the time of day (divided into hours) for each observation
+data.full$timeofday <- NA
+data.full[,"timeofday"] <- substr(data.full[,"datetime"], regexpr(" ",data.full[,"datetime"]) + 1, regexpr(" ",data.full[,"datetime"]) + 2)
+
+data.full$timeofday <- as.factor(as.numeric(data.full$timeofday))
+
+# Create a variable for the year and separate it from datetime
+data.full$year <- NA
+data.full[,"year"] <- substr(data.full[,"datetime"],1,4) 
+data.full$year <- as.factor(as.numeric(data.full$year))
+
+# Create a variable for the month and separate it from datetime
+data.full$month <- NA
+data.full[,"month"] <- substr(data.full[,"datetime"],6,7)
+data.full$month <- as.factor(as.numeric(data.full$month))
+
+# Find the Weekday
+library(lubridate)
+data.full$dayofweek <- wday(ymd_hms(data.full$datetime))
+table(data.full$dayofweek)
+data.full$dayofweek <- as.factor(data.full$dayofweek)
+
+# Create a variable for the day and separate it from datetime
+data.full$day <- NA
+data.full[,"day"] <- substr(data.full[,"datetime"],9,10)
+data.full$day <- as.factor(as.numeric(data.full$day))
+
+# convert some variables to factors
+data.full$season <- as.factor(data.full$season)
+data.full$workingday <- as.factor(data.full$workingday)
+data.full$weather <- as.factor(data.full$weather)
+data.full$holiday <- as.factor(data.full$holiday)
+
+#lets take a look at the structure of the dataset again
+str(data.full)
+
+```
+
+
+## Data Exploration
+
+Lests further look into the different predictor variables and how they impact the target variable. Due to the unavailability of some data, we will have to look only at the traindf for the casual and registered columns.
+
+```{r}
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+
+a <- data.full[data.full$IsTrain == TRUE,] %>% ggplot(aes(x = timeofday, y = count, color 
+                                                          = workingday)) + geom_jitter()
+
+b <- data.full[data.full$IsTrain == TRUE,] %>% ggplot(aes(x = season, y = count, color = weather)) +
+  geom_jitter()
+
+c <- data.full[data.full$IsTrain == TRUE,] %>% ggplot(aes(x = humidity, y = count)) + geom_jitter()
+
+d <- data.full[data.full$IsTrain == TRUE,] %>% ggplot(aes(x = temp, y = count)) + geom_jitter()
+
+e <- data.full[data.full$IsTrain == TRUE,] %>% ggplot(aes(x = atemp, y = count)) + geom_jitter()
+
+f <- data.full[data.full$IsTrain == TRUE,] %>% ggplot(aes(x = windspeed, y = count)) + geom_jitter()
+
+
+g <- data.full[data.full$IsTrain == TRUE,] %>% ggplot(aes(x = casual, y = count)) + geom_jitter()
+
+h <- data.full[data.full$IsTrain == TRUE,] %>% ggplot(aes(x = registered, y = count)) + geom_jitter()
+
+grid.arrange(a,b,c,d,e,f,ncol = 3)
+grid.arrange(g,h,ncol = 2)
+
+
+```
+
+
+## Partition Dataset
+
+We will now partition the revised dataset and prepare it for the GLM dataset.
+
+```{r}
+
+str(data.full)
+traindf <- data.full[data.full$IsTrain == TRUE,]
+testdf <- data.full[data.full$IsTrain == FALSE,]
+
+#structure of the 2 datasets
+str(traindf)
+str(testdf)
+
+
+#check rows
+nrow(data.full) == nrow(traindf) + nrow(testdf)
+
+```
+
+## LM Model
+
+We will use the Poisson distribution with the log distribution to determine the count
+
+```{r}
+
+form1 <- as.formula(count ~ season + holiday + workingday + weather + temp + atemp + humidity + 
+                      windspeed + timeofday + year + dayofweek)
+
+
+glm.model <- glm(form1, family = poisson(link = "log"), data = traindf)
+summary(glm.model)
+
+prediction.test <- predict(glm.model, newdata = testdf, type = "response")
+
+```
+
+We will now run the GLM on the test df
+```{r}
+
+datetimev <- testdf$datetime
+submissiondf <- data.frame("datetime" = datetimev,"count" = prediction.test)
+write.csv(submissiondf, "submission.csv", row.names = F)
+submissiondf
+```
+
+
+

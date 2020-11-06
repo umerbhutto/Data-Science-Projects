@@ -1,0 +1,317 @@
+---
+title: "Exam PA December 2018 Rmd Template"
+
+---
+
+Problem:
+The union would like to give functioning mines in the United States a simple five-star safety rating to help their members when choosing where to work and negotiating hazard pay. They think they have a good understanding of what factors drive mine safety, but they want us to offer an independent, data-driven analysis so that they can validate and refine their opinions. They pointed us to national mine data in the attached csv file. They asked our analytics firm for the following:
+  1. Two models, using different approaches, that will predict the rate of injuries per 2000 employee      hours for a given mine; and
+  2. A report that identifies the key factors resulting in higher or lower injury rates.
+
+-------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------
+
+Data Dictionary
+YEAR - Calendar year of experience
+US_STATE - US state where mine is located
+COMMODITY - Class of commodity mined
+PRIMARY - Primary commodity mined
+SEAM_HEIGHT - Coal seam height in inches (coal mines only)
+TYPE_OF_MINE - Type of mine
+MINE_STATUS - Status of operation of mine
+AVG_EMP_TOTAL - Average number of employees
+EMP_HRS_TOTAL - Total number of employee hours
+PCT_HRS_UNDERGROUND - Proportion of employee hours in underground operations
+PCT_HRS_SURFACE - Proportion of employee hours at surface operations of underground
+                  mine
+PCT_HRS_STRIP - Proportion of employee hours at strip mine
+PCT_HRS_AUGER - Proportion of employee hours in auger mining
+PCT_HRS_CULM_BANK - Proportion of employee hours in culm bank operations
+PCT_HRS_DREDGE - Proportion of employee hours in dredge operations
+PCT_HRS_OTHER_SURFACE - Proportion of employee hours in other surface mining operations
+PCT_HRS_SHOP_YARD - Proportion of employee hours in independent shops and yards
+PCT_HRS_MILL_PREP - Proportion of employee hours in mills or prep plants
+PCT_HRS_OFFICE - Proportion of employee hours in offices
+NUM_INJURIES - Total number of accidents reported
+
+-------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------
+
+## Load data
+
+Load data provided for project.
+
+```{r}
+# Read in data files
+data.all <- read.csv('MSHA_Mine_Data_2013-2016.csv')
+
+```
+
+## Data exploration and cleaning
+
+To get a sense of the data, here are summary statistics:
+
+```{r}
+summary(data.all)
+str(data.all)
+```
+
+Not much missing data, so getting rid of any record with a missing value.
+
+```{r}
+data.nomissing <- data.all[!is.na(data.all$MINE_STATUS),]
+data.nomissing <- data.nomissing[!is.na(data.nomissing$US_STATE),]
+data.nomissing <- data.nomissing[!is.na(data.nomissing$PRIMARY),]
+nrow(data.all) - nrow(data.nomissing)
+summary(data.nomissing)
+```
+
+Removed 27 rows. There seem to be a few categorical variables. I will check these categorical variables for granularity. Those variables that are too granular will be removed
+
+```{r}
+
+length(levels(data.all[,2]))
+
+for(i in c(2:4,6:7)){
+  print(paste(colnames(data.all)[i], "=",length(levels(data.all[,i]))))
+}
+
+# Create a new dataset to save changes to
+data.reduced <- data.nomissing
+
+# Remove granular columns
+data.reduced$PRIMARY <- NULL
+data.reduced$US_STATE <- NULL
+
+summary(data.reduced)
+
+```
+
+## Data Analysis
+
+```{r}
+
+# Let's first create the target variable
+data.reduced$RATE_INJ_PER_2K <- data.reduced$NUM_INJURIES / (data.reduced$EMP_HRS_TOTAL / 2000)
+
+# Take a closer look at the target variable
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+data.reduced %>% ggplot(aes(x = RATE_INJ_PER_2K)) + geom_histogram()
+summary(data.reduced$RATE_INJ_PER_2K)
+# The INJury rate seems too high, we need to look into this. Also theres an outlier that shows Rate of injury as 2000
+data.reduced[data.reduced$RATE_INJ_PER_2K == 2000,]
+# based on this EMP_HOURS = 1 and NUM_INJURIES= 1. Need to look into this
+
+# Take a closer look at total employee hours that are less than 2500
+data.reduced[data.reduced$EMP_HRS_TOTAL <= 2000,] %>% ggplot(aes(x = EMP_HRS_TOTAL)) + geom_histogram()
+data.reduced[data.reduced$EMP_HRS_TOTAL <= 2000,] %>% ggplot(aes(x = EMP_HRS_TOTAL, y = NUM_INJURIES)) + geom_point()
+
+# They seem to be contributing towards employee hours being large. As a result we will only look at employee hours > 2000
+data.reduced1 <- data.reduced[data.reduced$EMP_HRS_TOTAL >= 2000,]
+abs(nrow(data.reduced1) - nrow(data.reduced))
+# removed 14503 rows
+
+# we will take a look again at the rate of injury
+data.reduced1 %>% ggplot(aes(x = RATE_INJ_PER_2K)) + geom_histogram()
+
+# that seems to have reduced it. However it seems that there are a few closed / like closed mines
+data.reduced1 %>% ggplot(aes(x = EMP_HRS_TOTAL, fill = MINE_STATUS)) + geom_histogram()
+# we will remove these mines
+
+levels(data.reduced1$MINE_STATUS)
+
+# Make a backup
+data.reduced2 <- data.reduced1
+remove_mine <- c("Closed by MSHA","Non-producing", "Permanently abandoned","Temporarily closed")
+for(i in 1:length(remove_mine)){
+  data.reduced2 <- data.reduced2[data.reduced2$MINE_STATUS != remove_mine[i],]
+}
+# removed 3096 rows
+
+# Let's take a look again at the Injury rate
+data.reduced2 %>% ggplot(aes(x = RATE_INJ_PER_2K)) + geom_histogram()
+# Injury rate looks a lot more acceptable
+str(data.reduced2)
+
+```
+
+Let's take a closer look at the data and identify any trends
+
+```{r}
+
+# Looking at categorical variables only
+for(i in c(1:2,4:5)){
+  m <-data.reduced2 %>% ggplot(aes(x = data.reduced2[,i], y = RATE_INJ_PER_2K)) + 
+    geom_jitter(alpha = 0.4) + labs(x = colnames(data.reduced2)[i])
+  print(m)
+}
+
+# Looking at numerical variables only
+for(i in c(3,6:18)){
+  m <- data.reduced2 %>% ggplot(aes(x = data.reduced2[,i], y = RATE_INJ_PER_2K)) + 
+    geom_jitter(alpha = 0.4) + labs(x = colnames(data.reduced2)[i])
+  print(m)
+}
+
+```
+
+We visualized the numeric / categorical variables that may be useful. Year does not have much of an affect but commodity and type of mine do have an affect on the rate of injury. Surprisingly, the % of time underground does not have a strong correlation with high rate of injury. Also a higher PCT_HRS_STRIP does lead to higher rate of injury. Also lower PCT_HRS_OFFICE leads to a higher rate of injury. Other than that, the variables were within the acceptable range for this study.
+
+## Data Partition
+
+We will use validation-set approach and use stratified sampling to create a trian / test dataset
+
+```{r}
+
+library(caret)
+set.seed(1234)
+partition <- createDataPartition(data.reduced2$RATE_INJ_PER_2K, list = FALSE, p = .80)
+train <- data.reduced2[partition, ]
+test <- data.reduced2[-partition, ]
+
+# check
+nrow(train) + nrow(test) == nrow(data.reduced2)
+
+```
+
+## Decision tree
+
+The following code sets up a decision tree using all the variables in the dataframe train dataset.The left side of the formula is employee hours per year followed by number of injuries. Number of injuries is what is being predicted, but employee hours is used as an offset as the number injuries is expected to be proportional to the number of employee hours worked. This formula format automatically results in a Poisson method being used, but I am stating it explicitly for clarity. Need to make sure to remove EMP_HRS_TOTAL from the formula as that is not a predictor variable.
+
+This code sets arbitrary parameters for the control, then prunes the tree. It then calculates the loglikelihood using the entire dataset. I've not had time to work with training and testing sets.
+
+```{r}
+library(rpart)
+library(rpart.plot)
+set.seed(153) # because rpart uses cross-validation for estimating complexity parameter
+tree.reduced <- rpart(cbind(EMP_HRS_TOTAL/2000, NUM_INJURIES) ~ . - EMP_HRS_TOTAL - RATE_INJ_PER_2K,
+                      data = train,
+                      method = "poisson",
+                      control = rpart.control(minbucket = 25, 
+                                              cp = 0, 
+                                              maxdepth = 10))
+# Plot the tree
+rpart.plot(tree.reduced)
+plotcp(tree.reduced)
+
+# Prune the decision tree
+tree.reduced.pruned <- prune(tree.reduced, 
+                             cp = tree.reduced$cptable[which.min(tree.reduced$cptable[, "xerror"]), "CP"])
+
+# Plot the pruned tree
+rpart.plot(tree.reduced.pruned)
+printcp(tree.reduced.pruned)
+tree.reduced.pruned
+
+# Calculated teh log likelihood of the tree
+pruned.predict <- (data.reduced$EMP_HRS_TOTAL/2000)*predict(tree.reduced.pruned, newdata = data.reduced, type = "vector") 
+
+# The prediction for the loglikelihood function should be the number of injuries, not the injury rate
+print("loglikelihood")
+LLfunction(data.reduced$NUM_INJURIES,pruned.predict)
+# Loglikelihood = 1149.417
+
+```
+
+based on the analysis, i believe the pruned plot is a lot less complex. We will have to compare the log likelihood of the decision tree to the GLM later on.
+
+## GLM
+
+When I ran this using the data I had there were some odd results. There are NAs for "sand & gravel" and something about a rank-deficient fit, which may be tied the huge coeffients for the hours variable and with the fact that they sum to 1 in each case. I concluded that the problem was being cause by the "Sand & gravel" level. I created a new variable that concantonated the TYPE_OF_MINE and COMMODITY variables. I then releved the variable
+
+```{r}
+
+# Create a backup
+data.reduced3 <- data.reduced2
+
+# Table shows that COMMODITY and TYPE_OF_MINE variable have identical sand & gravel factors
+table(data.reduced3$COMMODITY, data.reduced3$TYPE_OF_MINE)
+
+# Fix by removing the variables and including only the interaction term 
+data.reduced4 <- data.reduced3
+data.reduced4$MINE_CHAR <- paste(data.reduced4$TYPE_OF_MINE, data.reduced4$COMMODITY)
+data.reduced4$MINE_CHAR <- relevel(as.factor(data.reduced4$MINE_CHAR),ref="Sand & gravel Sand & gravel")
+
+# Take log of AVG_EMP_TOTAL, as this typically improves fit
+data.reduced4$LOG_AVG_EMP_TOTAL <- log(data.reduced4$AVG_EMP_TOTAL)
+data.reduced4$AVG_EMP_TOTAL <- NULL
+
+# Repeat split of train and test data to capture above changes, but use the same partition as previously so that fair comparisons can be made to the trees and earlier GLMs.
+train <- data.reduced4[partition, ]
+test <- data.reduced4[-partition, ]
+
+# Summary of train and test stats to check against prior values, all OK
+print("TRAIN")
+mean(trainGLM$INJ_RATE_PER2K)
+print("TEST")
+mean(testGLM$INJ_RATE_PER2K)
+
+```
+
+The following code produces a poisson GLM. The log link is the default and the offset is a log here because it acts at the level of the linear model.
+
+
+```{r}
+
+# Taking out STRIP based on this, giving visible coefficients for all others, also apply just to same train data as trees
+GLM_1 <- glm(NUM_INJURIES ~ . - EMP_HRS_TOTAL,
+                   family = poisson(),
+                   offset = log(EMP_HRS_TOTAL/2000),
+                   data = train)
+
+summary(GLM_1)
+
+glm.predict <- predict(GLM_1, newdata = test, type = "response")
+print("GLM_1 LL")
+LLfunction(test$NUM_INJURIES,glm.predict)
+# Log likelihood = 1462.552
+
+```
+
+To reduce the complexity of the model and improve the accuracy I used stepAIC:
+
+```{r}
+
+library(MASS)
+stepAIC(GLM_1)
+
+formula1 <- as.formula(NUM_INJURIES ~ SEAM_HEIGHT + PCT_HRS_UNDERGROUND + 
+    PCT_HRS_MILL_PREP + PCT_HRS_OFFICE + MINE_CHAR + LOG_AVG_EMP_TOTAL + 
+    LOG_AVG_EMP_TOTAL:PCT_HRS_UNDERGROUND + LOG_AVG_EMP_TOTAL:PCT_HRS_STRIP)
+
+GLM_2 <- glm(formula1,
+                   family = poisson(),
+                   offset = log(EMP_HRS_TOTAL/2000),
+                   data = train)
+
+summary(GLM_2)
+
+glm.predict <- predict(GLM_2, newdata = test, type = "response")
+print("GLM_1 LL")
+LLfunction(test$NUM_INJURIES,glm.predict)
+# Log likelihood = 678.6169
+
+
+```
+
+## Final model
+
+Below is the final model
+
+```{r}
+
+GLM_Final <- glm(NUM_INJURIES ~ SEAM_HEIGHT + PCT_HRS_UNDERGROUND + 
+    PCT_HRS_MILL_PREP + PCT_HRS_OFFICE + MINE_CHAR + LOG_AVG_EMP_TOTAL + 
+    LOG_AVG_EMP_TOTAL:PCT_HRS_UNDERGROUND + LOG_AVG_EMP_TOTAL:PCT_HRS_STRIP,
+                   family = poisson(),
+                   offset = log(EMP_HRS_TOTAL/2000),
+                   data = data.reduced4)
+
+summary(GLM_Final)
+
+```
+
+
+
