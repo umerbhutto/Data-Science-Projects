@@ -10,7 +10,7 @@ Description: A Kaggle dataset showing if customers that have car insurance would
 Description: A dataset where you predict who would survive based on various factors and characteristics
 
 ## SOA - Hospital Readmission
-DescriptioN: An SOA dataset showing the probability of an individual being readmitted into a hospital
+Description: An SOA dataset showing the probability of an individual being readmitted into a hospital
 
 ## SOA - Mine Safety Ratings
 Description: An SOA dataset where you predict the safety of a mine based on various factors
