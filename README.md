@@ -17,3 +17,6 @@ Description: An SOA dataset where you predict the safety of a mine based on vari
 
 ## SOA - Student Success
 Description: An SOA dataset where you predict the success of each student based on various factors
+
+## IMDB Prediction
+Description: Uses and SID classifier to predict whether the movie review is positive or negative
