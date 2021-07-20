@@ -6,6 +6,9 @@ Description: A Kaggle dataset showing the demand of bikes at various times in NY
 ## Kaggle - Health Insurance Cross sell
 Description: A Kaggle dataset showing if customers that have car insurance would also be interested in healht insurance
 
+## Kaggle - Insurance Cross sell 
+Description: A Kaggle dataset showing various models used to predict whehter or not individuals would buy insurance
+
 ## Kaggle - Titanic Machine Learning
 Description: A dataset where you predict who would survive based on various factors and characteristics
 
