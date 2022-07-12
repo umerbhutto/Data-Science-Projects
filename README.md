@@ -12,6 +12,9 @@ Description: A Kaggle dataset showing various models used to predict whehter or 
 ## Kaggle - Titanic Machine Learning
 Description: A dataset where you predict who would survive based on various factors and characteristics
 
+## Kaggle - Graduate Admissions
+Description: A dataset where you predict the chance of admission in graduate school based on various factors and characteristics
+
 ## SOA - Hospital Readmission
 Description: An SOA dataset showing the probability of an individual being readmitted into a hospital
 
