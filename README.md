@@ -3,6 +3,9 @@
 ## Kaggle - Bike Sharing Demand
 Description: A Kaggle dataset showing the demand of bikes at various times in NYC
 
+## Kaggle - Binary Prediction of Smoker Status using Bio-Signals
+Description: Use binary classification to predict a patient's smoking status given information about various other health indicators.
+
 ## Kaggle - Graduate Admissions
 Description: A dataset where you predict the chance of admission in graduate school based on various factors and characteristics
 
